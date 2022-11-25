@@ -83,6 +83,27 @@ async function run(){
         });
 
 
+        // my products
+        app.get('/myProducts',  async (req, res) => {
+            const email = req.query.email;
+            // const decodedEmail = req.decoded.email;
+
+            // if (email !== decodedEmail) {
+            //     return res.status(403).send({ message: 'forbidden access' });
+            // }
+
+            const query = { email: email };
+            const bookings = await productsCollection.find(query).toArray();
+            res.send(bookings);
+        });
+
+        app.delete('/myProducts/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await productsCollection.deleteOne(filter);
+            res.send(result);
+        });
+
         app.post('/products',  async (req, res) => {
             const product = req.body;
             const result = await productsCollection.insertOne(product);
@@ -110,6 +131,7 @@ async function run(){
             res.send(products);
           });
 
+        //   allSellers
           app.get('/allSellers', async (req, res) => {
             const query = {}
             const result = await productsCollection.find(query).toArray();
@@ -121,7 +143,20 @@ async function run(){
             const filter = { _id: ObjectId(id) };
             const result = await productsCollection.deleteOne(filter);
             res.send(result);
-        })
+        });
+
+        // allBuyers
+        app.get('/allBuyers', async (req, res) => {
+            const query = {}
+            const result = await bookingsCollection.find(query).toArray();
+            res.send(result);
+        });
+        app.delete('/allBuyers/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await bookingsCollection.deleteOne(filter);
+            res.send(result);
+        });
 
     }
     finally{
