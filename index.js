@@ -1,10 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-// const jwt = require('jsonwebtoken');
+ const jwt = require('jsonwebtoken');
 require('dotenv').config();
-// const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-
+ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const port = process.env.PORT || 5000;
 
 const app = express();
@@ -20,13 +19,43 @@ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@clu
 
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
+function verifyJWT(req, res, next) {
 
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).send('unauthorized access');
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    jwt.verify(token, process.env.ACCESS_TOKEN, function (err, decoded) {
+        if (err) {
+            return res.status(403).send({ message: 'forbidden access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+
+}
 async function run(){
     try{
         const categoriesCollection = client.db('trustedFurniture').collection('categories');
         const productsCollection = client.db('trustedFurniture').collection('products');
         const usersCollection = client.db('trustedFurniture').collection('users');
         const bookingsCollection = client.db('trustedFurniture').collection('bookings');
+        const wishlistsCollection = client.db('trustedFurniture').collection('wishlists');
+
+        //  verifyadmin
+        const verifyAdmin = async (req, res, next) => {
+            const decodedEmail = req.decoded.email;
+            const query = { email: decodedEmail };
+            const user = await usersCollection.findOne(query);
+
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
+        }
 
         app.get('/categories', async (req, res) => {
             const query = {}
@@ -34,6 +63,17 @@ async function run(){
             res.send(result);
         })
 
+        // jwt
+        app.get('/jwt', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            if (user) {
+                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '1d' })
+                return res.send({ accessToken: token });
+            }
+            res.status(403).send({ accessToken: '' })
+        });
         // users
         app.post('/users', async (req, res) => {
             const user = req.body;
@@ -68,7 +108,7 @@ async function run(){
             const result = await bookingsCollection.insertOne(booking);
             res.send(result);
         });
-
+// /////
         app.get('/bookings',  async (req, res) => {
             const email = req.query.email;
             // const decodedEmail = req.decoded.email;
@@ -82,7 +122,109 @@ async function run(){
             res.send(bookings);
         });
 
+        app.get('/bookings/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const booking = await bookingsCollection.findOne(query);
+            res.send(booking);
+        })
 
+        // wishlist
+        app.post('/wishlist', async (req, res) => {
+            const wishlist = req.body;
+            const result = await wishlistsCollection.insertOne(wishlist);
+            res.send(result);
+        });
+
+        app.get('/wishlists',  async (req, res) => {
+            const email = req.query.email;
+            // const decodedEmail = req.decoded.email;
+
+            // if (email !== decodedEmail) {
+            //     return res.status(403).send({ message: 'forbidden access' });
+            // }
+
+            const query = { email:email };
+            const wishlists = await wishlistsCollection.find(query).toArray();
+            res.send(wishlists);
+        });
+
+
+        // verify
+        app.put('/verify/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) }
+            const seller = await usersCollection.findOne(filter);
+            const verify = seller.isVerified;
+            if(verify){
+                return res.send({acknowledged: false, message: " You already verified"})
+            }
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    isVerified: true
+                }
+            }
+            const result = await usersCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        });
+
+        // app.get('/verify', async (req, res) => {
+        //     const result = await usersCollection.findOne({ isVerified: true });
+          
+        //     res.send(result);
+        // })
+        app.get('/user', async (req,res)=>{
+            const email = req.query.email
+            const query = {email:email}
+            const result = await usersCollection.findOne(query)
+            res.send(result)
+        })
+
+        // advertise
+        app.put('/advertise/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) }
+            const product = await productsCollection.findOne(filter);
+            const advertise = product.isAdvertised;
+            if(advertise){
+                return res.send({acknowledged: false, message: " You already added"})
+            }
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    isAdvertised: true
+                }
+            }
+            const result = await productsCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+        });
+
+       app.get('/advertise', async (req, res) => {
+            const result = await productsCollection.find({ isAdvertised: true }).toArray();
+          
+            res.send(result);
+        })
+
+        //  payment
+        app.post('/create-payment-intent', async (req, res) => {
+            const booking = req.body;
+            const price = (booking.price);
+            const amount = (price * 100);
+
+            const paymentIntent = await stripe.paymentIntents.create({
+                currency: 'usd',
+                amount: amount,
+                "payment_method_types": [
+                    "card"
+                ]
+            });
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        });
+
+    //   //// 
         // my products
         app.get('/myProducts',  async (req, res) => {
             const email = req.query.email;
@@ -131,30 +273,51 @@ async function run(){
             res.send(products);
           });
 
-        //   allSellers
-          app.get('/allSellers', async (req, res) => {
-            const query = {}
-            const result = await productsCollection.find(query).toArray();
-            res.send(result);
+       
+
+        app.get('/allSellers',  async (req, res) => {
+            const email = req.query.email;
+            // const decodedEmail = req.decoded.email;
+
+            // if (email !== decodedEmail) {
+            //     return res.status(403).send({ message: 'forbidden access' });
+            // }
+
+            const query = {role:'seller'}
+            const seller = await usersCollection.find(query).toArray();
+            res.send(seller);
         });
 
-        app.delete('/allSellers/:id', async (req, res) => {
+
+
+
+
+
+        app.delete('/allSellers/:id',async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
-            const result = await productsCollection.deleteOne(filter);
+            const result = await usersCollection.deleteOne(filter);
             res.send(result);
         });
 
         // allBuyers
-        app.get('/allBuyers', async (req, res) => {
-            const query = {}
-            const result = await bookingsCollection.find(query).toArray();
-            res.send(result);
+        app.get('/allBuyers',  async (req, res) => {
+            const email = req.query.email;
+            // const decodedEmail = req.decoded.email;
+
+            // if (email !== decodedEmail) {
+            //     return res.status(403).send({ message: 'forbidden access' });
+            // }
+
+            const query = {role:'buyer'}
+            const seller = await usersCollection.find(query).toArray();
+            res.send(seller);
         });
+
         app.delete('/allBuyers/:id', async (req, res) => {
             const id = req.params.id;
             const filter = { _id: ObjectId(id) };
-            const result = await bookingsCollection.deleteOne(filter);
+            const result = await usersCollection.deleteOne(filter);
             res.send(result);
         });
 
