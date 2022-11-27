@@ -69,7 +69,7 @@ async function run(){
             const query = { email: email };
             const user = await usersCollection.findOne(query);
             if (user) {
-                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '1d' })
+                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '1h' })
                 return res.send({ accessToken: token });
             }
             res.status(403).send({ accessToken: '' })
@@ -109,13 +109,13 @@ async function run(){
             res.send(result);
         });
 // /////
-        app.get('/bookings',  async (req, res) => {
+        app.get('/bookings',verifyJWT, async (req, res) => {
             const email = req.query.email;
-            // const decodedEmail = req.decoded.email;
+            const decodedEmail = req.decoded.email;
 
-            // if (email !== decodedEmail) {
-            //     return res.status(403).send({ message: 'forbidden access' });
-            // }
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
 
             const query = { email: email };
             const bookings = await bookingsCollection.find(query).toArray();
@@ -136,13 +136,13 @@ async function run(){
             res.send(result);
         });
 
-        app.get('/wishlists',  async (req, res) => {
+        app.get('/wishlists', verifyJWT,  async (req, res) => {
             const email = req.query.email;
-            // const decodedEmail = req.decoded.email;
+            const decodedEmail = req.decoded.email;
 
-            // if (email !== decodedEmail) {
-            //     return res.status(403).send({ message: 'forbidden access' });
-            // }
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
 
             const query = { email:email };
             const wishlists = await wishlistsCollection.find(query).toArray();
@@ -169,11 +169,7 @@ async function run(){
             res.send(result);
         });
 
-        // app.get('/verify', async (req, res) => {
-        //     const result = await usersCollection.findOne({ isVerified: true });
-          
-        //     res.send(result);
-        // })
+       
         app.get('/user', async (req,res)=>{
             const email = req.query.email
             const query = {email:email}
@@ -209,11 +205,11 @@ async function run(){
         //  payment
         app.post('/create-payment-intent', async (req, res) => {
             const booking = req.body;
-            const price = (booking.price);
+            const price = parseInt(booking.price);
             const amount = (price * 100);
-
+            console.log(booking)
             const paymentIntent = await stripe.paymentIntents.create({
-                currency: 'usd',
+                currency: "usd",
                 amount: amount,
                 "payment_method_types": [
                     "card"
@@ -224,15 +220,29 @@ async function run(){
             });
         });
 
+        app.post('/payments', async (req, res) =>{
+            const payment = req.body;
+            const result = await paymentsCollection.insertOne(payment);
+            const id = payment.bookingId
+            const filter = {_id: ObjectId(id)}
+            const updatedDoc = {
+                $set: {
+                    paid: true,
+                    transactionId: payment.transactionId
+                }
+            }
+            const updatedResult = await bookingsCollection.updateOne(filter, updatedDoc)
+            res.send(result);
+        })
     //   //// 
         // my products
-        app.get('/myProducts',  async (req, res) => {
+        app.get('/myProducts', verifyJWT, async (req, res) => {
             const email = req.query.email;
-            // const decodedEmail = req.decoded.email;
+            const decodedEmail = req.decoded.email;
 
-            // if (email !== decodedEmail) {
-            //     return res.status(403).send({ message: 'forbidden access' });
-            // }
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
 
             const query = { email: email };
             const bookings = await productsCollection.find(query).toArray();
@@ -275,13 +285,13 @@ async function run(){
 
        
 
-        app.get('/allSellers',  async (req, res) => {
+        app.get('/allSellers',verifyJWT,verifyAdmin,  async (req, res) => {
             const email = req.query.email;
-            // const decodedEmail = req.decoded.email;
+            const decodedEmail = req.decoded.email;
 
-            // if (email !== decodedEmail) {
-            //     return res.status(403).send({ message: 'forbidden access' });
-            // }
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
 
             const query = {role:'seller'}
             const seller = await usersCollection.find(query).toArray();
@@ -301,13 +311,13 @@ async function run(){
         });
 
         // allBuyers
-        app.get('/allBuyers',  async (req, res) => {
+        app.get('/allBuyers', verifyJWT,verifyAdmin, async (req, res) => {
             const email = req.query.email;
-            // const decodedEmail = req.decoded.email;
+            const decodedEmail = req.decoded.email;
 
-            // if (email !== decodedEmail) {
-            //     return res.status(403).send({ message: 'forbidden access' });
-            // }
+            if (email !== decodedEmail) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
 
             const query = {role:'buyer'}
             const seller = await usersCollection.find(query).toArray();
