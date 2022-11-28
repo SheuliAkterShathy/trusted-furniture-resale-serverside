@@ -44,6 +44,7 @@ async function run(){
         const usersCollection = client.db('trustedFurniture').collection('users');
         const bookingsCollection = client.db('trustedFurniture').collection('bookings');
         const wishlistsCollection = client.db('trustedFurniture').collection('wishlists');
+        const paymentsCollection = client.db('trustedFurniture').collection('payments');
 
         //  verifyadmin
         const verifyAdmin = async (req, res, next) => {
@@ -151,31 +152,62 @@ async function run(){
 
 
         // verify
-        app.put('/verify/:id', async (req, res) => {
-            const id = req.params.id;
-            const filter = { _id: ObjectId(id) }
-            const seller = await usersCollection.findOne(filter);
-            const verify = seller.isVerified;
-            if(verify){
-                return res.send({acknowledged: false, message: " You already verified"})
-            }
-            const options = { upsert: true };
-            const updatedDoc = {
-                $set: {
-                    isVerified: true
-                }
-            }
-            const result = await usersCollection.updateOne(filter, updatedDoc, options);
-            res.send(result);
-        });
+        // app.put('/verify/:id', async (req, res) => {
+        //     const id = req.params.id;
+        //     const filter = { _id: ObjectId(id) }
+        //     const seller = await usersCollection.findOne(filter);
+        //     const verify = seller.isVerified;
+        //     if(verify){
+        //         return res.send({acknowledged: false, message: " You already verified"})
+        //     }
+        //     const options = { upsert: true };
+        //     const updatedDoc = {
+        //         $set: {
+        //             verified: true
+        //         }
+        //     }
+        //     const result = await usersCollection.updateOne(filter, updatedDoc, options);
+        //     res.send(result);
+        // });
 
-       
+
+        app.put("/users", verifyJWT, async (req, res) => {
+            const email = req.query.email;
+            const decodedEmail = req.decoded.email;
+            if (email !== decodedEmail) {
+              return res.status(403).send({ message: "forbidden access" });
+            }
+            const id = req.query.userid;
+            console.log(id);
+            const filter = { _id: ObjectId(id) };
+            const options = { upsert: true };
+            const updateDoc = {
+              $set: {
+                verified: true,
+              },
+            };
+      
+            const result = await usersCollection.updateOne(
+              filter,
+              updateDoc,
+              options
+            );
+            res.send(result);
+          });
+
         app.get('/user', async (req,res)=>{
             const email = req.query.email
             const query = {email:email}
             const result = await usersCollection.findOne(query)
             res.send(result)
         })
+
+        // app.get('/user', async (req,res)=>{
+        //     const name = req.query.name
+        //     const query = {name}
+        //     const result = await usersCollection.findOne(query)
+        //     res.send(result)
+        // })
 
         // advertise
         app.put('/advertise/:id', async (req, res) => {
@@ -205,11 +237,11 @@ async function run(){
         //  payment
         app.post('/create-payment-intent', async (req, res) => {
             const booking = req.body;
-            const price = parseInt(booking.price);
-            const amount = (price * 100);
-            console.log(booking)
+            const price = booking.price;
+            const amount = price * 100;
+
             const paymentIntent = await stripe.paymentIntents.create({
-                currency: "usd",
+                currency: 'usd',
                 amount: amount,
                 "payment_method_types": [
                     "card"
@@ -234,6 +266,9 @@ async function run(){
             const updatedResult = await bookingsCollection.updateOne(filter, updatedDoc)
             res.send(result);
         })
+
+
+      
     //   //// 
         // my products
         app.get('/myProducts', verifyJWT, async (req, res) => {
