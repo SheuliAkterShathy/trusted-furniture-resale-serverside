@@ -109,7 +109,7 @@ async function run(){
             const result = await bookingsCollection.insertOne(booking);
             res.send(result);
         });
-// /////
+
         app.get('/bookings',verifyJWT, async (req, res) => {
             const email = req.query.email;
             const decodedEmail = req.decoded.email;
@@ -151,26 +151,6 @@ async function run(){
         });
 
 
-        // verify
-        // app.put('/verify/:id', async (req, res) => {
-        //     const id = req.params.id;
-        //     const filter = { _id: ObjectId(id) }
-        //     const seller = await usersCollection.findOne(filter);
-        //     const verify = seller.isVerified;
-        //     if(verify){
-        //         return res.send({acknowledged: false, message: " You already verified"})
-        //     }
-        //     const options = { upsert: true };
-        //     const updatedDoc = {
-        //         $set: {
-        //             verified: true
-        //         }
-        //     }
-        //     const result = await usersCollection.updateOne(filter, updatedDoc, options);
-        //     res.send(result);
-        // });
-
-
         app.put("/users", verifyJWT, async (req, res) => {
             const email = req.query.email;
             const decodedEmail = req.decoded.email;
@@ -202,12 +182,8 @@ async function run(){
             res.send(result)
         })
 
-        // app.get('/user', async (req,res)=>{
-        //     const name = req.query.name
-        //     const query = {name}
-        //     const result = await usersCollection.findOne(query)
-        //     res.send(result)
-        // })
+       
+       
 
         // advertise
         app.put('/advertise/:id', async (req, res) => {
@@ -269,7 +245,7 @@ async function run(){
 
 
       
-    //   //// 
+   
         // my products
         app.get('/myProducts', verifyJWT, async (req, res) => {
             const email = req.query.email;
